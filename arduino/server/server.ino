@@ -5,6 +5,9 @@ const char* password = "";
 const int serverPort = 1234;
 
 WiFiServer server(serverPort);
+bool ledState = false;
+
+const int LED_PIN = 2; // GPIO pin number for the built-in LED
 
 void setup() {
   Serial.begin(115200);
@@ -22,9 +25,6 @@ void setup() {
   // Start the server
   server.begin();
   Serial.println("Server started");
-
-  Serial.print("Server IP address: ");
-  Serial.println(WiFi.localIP());
 }
 
 void loop() {
@@ -39,16 +39,26 @@ void loop() {
         String command = client.readStringUntil('\n');
         Serial.println("Received command: " + command);
 
-        // Process the command (e.g., control appliances)
-        // Implement your logic here
+        // Process the command
+        if (command == "TURN_ON_LED") {
+          digitalWrite(LED_PIN, HIGH);
+          ledState = true;
+        } else if (command == "TURN_OFF_LED") {
+          digitalWrite(LED_PIN, LOW);
+          ledState = false;
+        }
 
         // Respond to the client
-        client.println("Command received");
+        client.println("Command processed");
       }
     }
 
     // Close the connection
     client.stop();
     Serial.println("Client disconnected");
+
+    // Print LED state (optional)
+    Serial.print("LED state: ");
+    Serial.println(ledState);
   }
 }
