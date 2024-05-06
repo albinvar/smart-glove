@@ -4,7 +4,7 @@
 
 const char* ssid = "Wexron 2";
 const char* password = "";
-const char* serverIP = "192.168.168.207";
+const char* serverIP = "192.168.28.207";
 const int serverPort = 1234;
 const int tiltPin = 5; // Tilt sensor pin
 
@@ -48,35 +48,27 @@ void loop() {
     }
   }
 
-  
-
   // Wait for a response from the server (optional)
   while (client.connected()) {
-
     mpu.getAcceleration(&ax, &ay, &az);
 
-  // print out the data
-  Serial.print("aX = "); Serial.print(ax);
-  Serial.print(" | aY = "); Serial.print(ay);
-  Serial.print(" | aZ = "); Serial.println(az);
+    // Print out the accelerometer data
+    Serial.print("aX = "); Serial.print(ax);
+    Serial.print(" | aY = "); Serial.print(ay);
+    Serial.print(" | aZ = "); Serial.println(az);
 
-  // Detect tilt
-  bool tilted = digitalRead(tiltPin) == HIGH; // Assuming HIGH state indicates tilt
+    // Detect gestures and send commands accordingly
+    if (waveDetected(ax, ay, az)) {
+      client.println("WAVE_DETECTED");
+    } else if (flipDetected(ax, ay, az)) {
+      client.println("FLIP_DETECTED");
+    } else if (tiltDetected(ax, ay, az)) {
+      client.println("TILT_DETECTED");
+    }
 
-  Serial.println(tilted);
-  // Send command to the server based on tilt state
-  if (tilted) {
-    // Send command to turn on the server LED
-    client.println("TURN_ON_LED");
-  } else {
-    // Send command to turn off the server LED
-    client.println("TURN_OFF_LED");
-  }
-
-  delay(3000); // Wait for 3 seconds before sending next command
+    delay(500); // Wait for 3 seconds before sending next command
 
     if (client.available()) {
-      
       String response = client.readStringUntil('\n');
       Serial.println("Server response: " + response);
       // Process the response from the server if needed
@@ -88,4 +80,38 @@ void loop() {
 
   // Delay before sending next command
   delay(1000); // Delay for 1 second
+}
+
+// Function to detect wave gesture based on accelerometer readings
+bool waveDetected(int16_t ax, int16_t ay, int16_t az) {
+  // Check if ax, ay, and az are negative at the same time
+  if (ax < 5000 && ay < 0 && az < 0) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// Function to detect flip gesture based on accelerometer readings
+bool flipDetected(int16_t ax, int16_t ay, int16_t az) {
+  // Check if the device is flipped upside down
+  if (az < -8000) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+// Function to detect tilt gesture based on accelerometer readings
+bool tiltDetected(int16_t ax, int16_t ay, int16_t az) {
+  // Check if the device is tilted beyond a threshold angle
+  const int tiltThreshold = 30; // Angle threshold for tilt gesture (adjust as needed)
+  // Calculate the tilt angle from accelerometer readings
+  float tiltAngle = atan2(ax, -az) * 180.0 / PI; // Calculate tilt angle in degrees
+  // Check if the tilt angle exceeds the threshold
+  if (abs(tiltAngle) > tiltThreshold) {
+    return true;
+  } else {
+    return false;
+  }
 }
