@@ -11,6 +11,10 @@ const int tiltPin = 5; // Tilt sensor pin
 WiFiClient client;
 MPU6050 mpu;
 
+bool lastWaveState = false;
+bool lastFlipState = false;
+bool lastTiltState = false;
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -52,27 +56,29 @@ void loop() {
   while (client.connected()) {
     mpu.getAcceleration(&ax, &ay, &az);
 
-    // Print out the accelerometer data
-    Serial.print("aX = "); Serial.print(ax);
-    Serial.print(" | aY = "); Serial.print(ay);
-    Serial.print(" | aZ = "); Serial.println(az);
-
     // Detect gestures and send commands accordingly
-    if (waveDetected(ax, ay, az)) {
+    if (waveDetected(ax, ay, az) && !lastWaveState) {
       client.println("WAVE_DETECTED");
-    } else if (flipDetected(ax, ay, az)) {
+      lastWaveState = true;
+    } else if (!waveDetected(ax, ay, az)) {
+      lastWaveState = false;
+    }
+
+    if (flipDetected(ax, ay, az) && !lastFlipState) {
       client.println("FLIP_DETECTED");
-    } else if (tiltDetected(ax, ay, az)) {
+      lastFlipState = true;
+    } else if (!flipDetected(ax, ay, az)) {
+      lastFlipState = false;
+    }
+
+    if (tiltDetected(ax, ay, az) && !lastTiltState) {
       client.println("TILT_DETECTED");
+      lastTiltState = true;
+    } else if (!tiltDetected(ax, ay, az)) {
+      lastTiltState = false;
     }
 
-    delay(500); // Wait for 3 seconds before sending next command
-
-    if (client.available()) {
-      String response = client.readStringUntil('\n');
-      Serial.println("Server response: " + response);
-      // Process the response from the server if needed
-    }
+    delay(500); // Wait for 0.5 seconds before checking again
   }
 
   // Close the connection
@@ -104,7 +110,7 @@ bool flipDetected(int16_t ax, int16_t ay, int16_t az) {
 
 // Function to detect tilt gesture based on accelerometer readings
 bool tiltDetected(int16_t ax, int16_t ay, int16_t az) {
-  // check the tilt sensor pin
+  // Check the tilt sensor pin
   if (!digitalRead(tiltPin) == HIGH) {
     return true;
   } else {
