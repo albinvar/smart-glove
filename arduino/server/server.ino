@@ -1,5 +1,5 @@
 #include <WiFi.h>
-#include <ESP32Servo.h> // Include the ESP32Servo library
+#include <HTTPClient.h>
 
 const char* ssid = "Wexron 2";
 const char* password = "";
@@ -10,10 +10,30 @@ bool ledState = false;
 
 const int LED_PIN = 2;     // GPIO pin number for the built-in LED
 const int BUZZER_PIN = 18; // GPIO pin number for the buzzer
-const int SERVO_PIN = 5;  // GPIO pin number for the servo motor
-const int BUZZER_DURATION = 2000; // Duration to play the buzzer in milliseconds (2 seconds)
+const int BUZZER_DURATION = 1000; // Duration to play the buzzer in milliseconds (2 seconds)
 
-Servo myServo; // Create a servo object
+// Base URL of your API
+const char* apiBaseUrl = "http://127.0.0.1:8000/api/";
+
+// Function to send HTTP request
+void sendRequest(const char* endpoint) {
+  HTTPClient http;
+  String url = String(apiBaseUrl) + String(endpoint);
+  Serial.println("Sending request to: " + url);
+  if (http.begin(url)) {
+    int httpResponseCode = http.GET();
+    if (httpResponseCode > 0) {
+      Serial.print("HTTP response code: ");
+      Serial.println(httpResponseCode);
+    } else {
+      Serial.print("HTTP request failed: ");
+      Serial.println(http.errorToString(httpResponseCode).c_str());
+    }
+    http.end();
+  } else {
+    Serial.println("Failed to connect to server");
+  }
+}
 
 void setup() {
   Serial.begin(115200);
@@ -35,9 +55,6 @@ void setup() {
   // Start the server
   server.begin();
   Serial.println("Server started");
-
-  // Attach servo to the servo pin
-  myServo.attach(SERVO_PIN);
 }
 
 void loop() {
@@ -58,15 +75,15 @@ void loop() {
         if (command == "WAVE_DETECTED") {
           digitalWrite(LED_PIN, HIGH);
           ledState = true;
-          // Play the buzzer for BUZZER_DURATION milliseconds
-          tone(BUZZER_PIN, 2000); // Activate the buzzer at 2000 Hz
-          delay(BUZZER_DURATION); // Sound the buzzer for BUZZER_DURATION milliseconds
-          noTone(BUZZER_PIN); // Turn off the buzzer
-          // Rotate the servo motor to a certain angle (e.g., 90 degrees)
-          myServo.write(60); // Adjust the angle as needed
+          sendRequest("appliance1/toggle"); // Send request to toggle Appliance 1
         } else if (command == "TILT_DETECTED") {
           digitalWrite(LED_PIN, LOW);
           ledState = false;
+          sendRequest("appliance2/toggle"); // Send request to toggle Appliance 2
+        } else if (command == "FLIP_DETECTED") {
+          digitalWrite(LED_PIN, LOW);
+          ledState = false;
+          sendRequest("reset"); // Send request to reset all appliances
         }
 
         // Respond to the client

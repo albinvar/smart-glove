@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 // use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Appliance;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -18,5 +19,20 @@ class DatabaseSeeder extends Seeder
         //     'name' => 'Test User',
         //     'email' => 'test@example.com',
         // ]);
+
+        // seed appliances
+        Appliance::create(
+            [
+                'name' => 'Appliance 1',
+                'status' => 0,
+            ]
+        );
+
+        Appliance::create(
+            [
+                'name' => 'Appliance 2',
+                'status' => 0,
+            ]
+        );
     }
 }

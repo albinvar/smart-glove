@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Appliance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -14,6 +15,27 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
+// create a toggle for the appliance1 status
+Route::get('/appliance1/toggle', function () {
+    $appliance = Appliance::find(1);
+    $appliance->status = !$appliance->status;
+    $appliance->save();
+
+    return response()->json($appliance);
+});
+
+// create a toggle for the appliance2 status
+Route::get('/appliance2/toggle', function () {
+    $appliance = Appliance::find(2);
+    $appliance->status = !$appliance->status;
+    $appliance->save();
+
+    return response()->json($appliance);
+});
+
+// create a route to reset all appliances
+Route::get('/reset', function () {
+    Appliance::query()->update(['status' => 0]);
+
+    return response()->json('All appliances reset');
 });
