@@ -13,7 +13,7 @@ const int BUZZER_PIN = 18; // GPIO pin number for the buzzer
 const int BUZZER_DURATION = 1000; // Duration to play the buzzer in milliseconds (2 seconds)
 
 // Base URL of your API
-const char* apiBaseUrl = "http://127.0.0.1:8000/api/";
+const char* apiBaseUrl = "https://iot.albinvar.in/api/";
 
 // Function to send HTTP request
 void sendRequest(const char* endpoint) {
