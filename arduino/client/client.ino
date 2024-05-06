@@ -7,6 +7,8 @@ const char* password = "";
 const char* serverIP = "192.168.28.207";
 const int serverPort = 1234;
 const int tiltPin = 5; // Tilt sensor pin
+bool ledState = false;
+const int LED_PIN = 2;     // GPIO pin number for the built-in LED
 
 WiFiClient client;
 MPU6050 mpu;
@@ -60,6 +62,9 @@ void loop() {
     if (waveDetected(ax, ay, az) && !lastWaveState) {
       client.println("WAVE_DETECTED");
       lastWaveState = true;
+       digitalWrite(LED_PIN, HIGH);
+       delay(100);
+       digitalWrite(LED_PIN, LOW);
     } else if (!waveDetected(ax, ay, az)) {
       lastWaveState = false;
     }
@@ -85,7 +90,7 @@ void loop() {
   client.stop();
 
   // Delay before sending next command
-  delay(1000); // Delay for 1 second
+  delay(100); // Delay for 1 second
 }
 
 // Function to detect wave gesture based on accelerometer readings
