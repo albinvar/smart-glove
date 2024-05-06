@@ -104,12 +104,8 @@ bool flipDetected(int16_t ax, int16_t ay, int16_t az) {
 
 // Function to detect tilt gesture based on accelerometer readings
 bool tiltDetected(int16_t ax, int16_t ay, int16_t az) {
-  // Check if the device is tilted beyond a threshold angle
-  const int tiltThreshold = 30; // Angle threshold for tilt gesture (adjust as needed)
-  // Calculate the tilt angle from accelerometer readings
-  float tiltAngle = atan2(ax, -az) * 180.0 / PI; // Calculate tilt angle in degrees
-  // Check if the tilt angle exceeds the threshold
-  if (abs(tiltAngle) > tiltThreshold) {
+  // check the tilt sensor pin
+  if (!digitalRead(tiltPin) == HIGH) {
     return true;
   } else {
     return false;
