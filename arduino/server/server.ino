@@ -1,8 +1,8 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 
-const char* ssid = "Wexron 2";
-const char* password = "";
+const char* ssid = "..";
+const char* password = "123321123";
 const int serverPort = 1234;
 
 WiFiServer server(serverPort);
@@ -55,6 +55,10 @@ void setup() {
   // Start the server
   server.begin();
   Serial.println("Server started");
+
+  // ip address
+  Serial.print("IP Address : ");
+  Serial.println(WiFi.localIP());
 }
 
 void loop() {

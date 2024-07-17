@@ -1,124 +1,204 @@
-#include <WiFi.h>
+#define TINY_GSM_MODEM_SIM800  // Define GSM modem model
+#include <SoftwareSerial.h>
+#include <TinyGsmClient.h>
 #include <Wire.h>
-#include <MPU6050.h>
+#include <LiquidCrystal_I2C.h>
+#include <SPI.h>
+#include <MFRC522.h>
+#include <toneAC.h>
 
-const char* ssid = "Wexron 2";
-const char* password = "";
-const char* serverIP = "192.168.28.207";
-const int serverPort = 1234;
-const int tiltPin = 5; // Tilt sensor pin
-bool ledState = false;
-const int LED_PIN = 2;     // GPIO pin number for the built-in LED
+// I2C address for the LCD
+#define I2C_ADDR 0x27
 
-WiFiClient client;
-MPU6050 mpu;
+// Define the LCD display
+LiquidCrystal_I2C lcd(I2C_ADDR, 16, 2);
 
-bool lastWaveState = false;
-bool lastFlipState = false;
-bool lastTiltState = false;
+String apn = "internet";                    // APN
+String apn_u = "";                         // APN-Username
+String apn_p = "";                         // APN-Password
+String url = "http://bus.w3x.live/api/c"; // URL of Server
+
+SoftwareSerial SWserial(2, 3); // RX, TX
+
+MFRC522 mfrc522(10, 9);  // Define RFID reader pins (SS, RST)
 
 void setup() {
   Serial.begin(115200);
-  delay(1000);
+  Serial.println("SIM800 AT CMD Test");
+  SWserial.begin(9600);
 
-  // Initialize MPU6050
-  Wire.begin(21, 22); // Specify SDA and SCL pins
-  mpu.initialize();
+  // Initialize the LCD
+  lcd.begin(16, 2);
+  lcd.backlight();
 
-  // Set up tilt sensor pin
-  pinMode(tiltPin, INPUT);
+  // Initialize the RFID reader
+  SPI.begin();
+  mfrc522.PCD_Init();
 
-  // Connect to Wi-Fi
-  WiFi.begin(ssid, password);
-  Serial.print("Connecting to WiFi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  // Display Intro Message
+  lcd.setCursor(0, 0);
+  lcd.print("CBPVM System");
+
+  delay(2000);
+  // Display a cheerful message
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Setting up GSM..");
+  delay(2000);
+  // Display a cheerful message
+  lcd.setCursor(0, 0);
+  lcd.print("Configuring GPRS...");
+
+  delay(15000);
+  while (SWserial.available()) {
+    Serial.write(SWserial.read());
   }
-  Serial.println("Connected to WiFi");
+  delay(2000);
+  gsmConfigGPRS();
+  lcd.setCursor(0, 1);
+  lcd.print("Success...!!!");
+
+  delay(2000);
+
+  //clear the screen
+  lcd.clear();
+
+  lcd.setCursor(0, 0);
+  lcd.print("Please scan your");
+  lcd.setCursor(0, 1);
+  lcd.print("card here...");
 }
 
 void loop() {
-  // Read accelerometer data from MPU6050
-  int16_t ax, ay, az;
 
-  // Establish connection with the server
-  if (!client.connected()) {
-    Serial.print("Connecting to server...");
-    if (client.connect(serverIP, serverPort)) {
-      Serial.println("Connected to server");
+  if (mfrc522.PICC_IsNewCardPresent() && mfrc522.PICC_ReadCardSerial()) {
+    tone(7, 1000, 250);  
+    // Read RFID card UID
+    String uid = "";
+    for (byte i = 0; i < mfrc522.uid.size; i++) {
+      uid += String(mfrc522.uid.uidByte[i], HEX);
+    }
+    // Make HTTP request with UID as a parameter
+    gsmHTTPPost("uid=" + uid);
+    delay(1000);  // Adjust delay based on your requirements
+    lcd.setCursor(0, 0);
+    lcd.print("Please scan your");
+    lcd.setCursor(0, 1);
+    lcd.print("card here...");
+    mfrc522.PICC_HaltA();
+    mfrc522.PCD_StopCrypto1();
+  }
+}
+
+void gsmHTTPPost(String postdata) {
+  //clear the screen
+  lcd.clear();
+
+  lcd.setCursor(0, 0);
+  lcd.print("Please wait...");
+
+  Serial.println(" --- Start GPRS & HTTP --- ");
+  gsmSendSerial("AT+SAPBR=1,1");
+  gsmSendSerial("AT+SAPBR=2,1");
+  gsmSendSerial("AT+HTTPINIT");
+  gsmSendSerial("AT+HTTPPARA=CID,1");
+  gsmSendSerial("AT+HTTPPARA=URL," + url);
+  gsmSendSerial("AT+HTTPPARA=CONTENT,application/x-www-form-urlencoded");
+  gsmSendSerial("AT+HTTPDATA=100,1000");
+ 
+  lcd.setCursor(0, 0);
+  lcd.print("Sending Request..");
+  gsmSendSerial("AT+HTTPACTION=1");
+  lcd.setCursor(0, 1);
+  lcd.print("Done..!!!");
+  delay(7000);  // Wait for HTTP response
+  // Read HTTP status code
+  String response = gsmReadResponse();
+  int statusCode = response.substring(response.indexOf(",") + 1).toInt();
+
+  if (statusCode == 200) {
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Verified...!!!");
     } else {
-      Serial.println("Connection failed");
-      delay(5000); // Retry after 5 seconds
-      return;
-    }
-  }
-
-  // Wait for a response from the server (optional)
-  while (client.connected()) {
-    mpu.getAcceleration(&ax, &ay, &az);
-
-    // Detect gestures and send commands accordingly
-    if (waveDetected(ax, ay, az) && !lastWaveState) {
-      client.println("WAVE_DETECTED");
-      lastWaveState = true;
-       digitalWrite(LED_PIN, HIGH);
-       delay(100);
-       digitalWrite(LED_PIN, LOW);
-    } else if (!waveDetected(ax, ay, az)) {
-      lastWaveState = false;
+      lcd.clear();
+      lcd.setCursor(0, 0);
+      lcd.print("Unauthorized...!!!");
     }
 
-    if (flipDetected(ax, ay, az) && !lastFlipState) {
-      client.println("FLIP_DETECTED");
-      lastFlipState = true;
-    } else if (!flipDetected(ax, ay, az)) {
-      lastFlipState = false;
-    }
+  Serial.println("HTTP Status Code: " + String(statusCode));
+  // Read and print HTTP response
+  delay(5000);
+  response = gsmReadApiResponse();  // Read the actual HTTP response
 
-    if (tiltDetected(ax, ay, az) && !lastTiltState) {
-      client.println("TILT_DETECTED");
-      lastTiltState = true;
-    } else if (!tiltDetected(ax, ay, az)) {
-      lastTiltState = false;
-    }
+  Serial.println("HTTP Response:");
+  Serial.println(response);
 
-    delay(500); // Wait for 0.5 seconds before checking again
-  }
+  // Extract the JSON part and store it in a variable
+  int jsonStart = response.indexOf("{");
+  int jsonEnd = response.lastIndexOf("}");
 
-  // Close the connection
-  client.stop();
+  String jsonResponse = response.substring(jsonStart, jsonEnd + 1);
+  Serial.println("Extracted JSON Response:");
+  Serial.println(jsonResponse);
 
-  // Delay before sending next command
-  delay(100); // Delay for 1 second
+  gsmSendSerial("AT+HTTPTERM");
+  gsmSendSerial("AT+SAPBR=0,1");
+
+  //clear the screen
+  lcd.clear();
+
+  lcd.setCursor(0, 0);
+  lcd.print("Success...!");
 }
 
-// Function to detect wave gesture based on accelerometer readings
-bool waveDetected(int16_t ax, int16_t ay, int16_t az) {
-  // Check if ax, ay, and az are negative at the same time
-  if (ax < 5000 && ay < 0 && az < 0) {
-    return true;
-  } else {
-    return false;
+
+void gsmConfigGPRS() {
+  Serial.println(" --- CONFIG GPRS --- ");
+  gsmSendSerial("AT+SAPBR=3,1,Contype,GPRS");
+  gsmSendSerial("AT+SAPBR=3,1,APN," + apn);
+  if (apn_u != "") {
+    gsmSendSerial("AT+SAPBR=3,1,USER," + apn_u);
+  }
+  if (apn_p != "") {
+    gsmSendSerial("AT+SAPBR=3,1,PWD," + apn_p);
   }
 }
 
-// Function to detect flip gesture based on accelerometer readings
-bool flipDetected(int16_t ax, int16_t ay, int16_t az) {
-  // Check if the device is flipped upside down
-  if (az < -8000) {
-    return true;
-  } else {
-    return false;
+void gsmSendSerial(String command) {
+  Serial.println("Send ->: " + command);
+  SWserial.println(command);
+  delay(1500); // Adjust delay as needed
+  while (SWserial.available()) {
+    Serial.write(SWserial.read());
   }
+  Serial.println();
 }
 
-// Function to detect tilt gesture based on accelerometer readings
-bool tiltDetected(int16_t ax, int16_t ay, int16_t az) {
-  // Check the tilt sensor pin
-  if (!digitalRead(tiltPin) == HIGH) {
-    return true;
-  } else {
-    return false;
+String gsmReadResponse() {
+  String response = "";
+ 
+  while (SWserial.available()) {
+    char c = SWserial.read();
+    response += c;
+    delay(10);
   }
+  return response;
+}
+
+String gsmReadApiResponse() {
+  String response = "";
+  Serial.println("Send ->: AT+HTTPREAD");
+  SWserial.println("AT+HTTPREAD");
+  delay(1000); // Adjust delay as needed, increased to 2000 milliseconds
+  while (SWserial.available()) {
+    char c = SWserial.read();
+    response += c;
+    // Check for the presence of "OK" indicating the end of the response
+    if (response.endsWith("OK")) {
+      break;
+    }
+    delay(10);
+  }
+  return response;
 }
